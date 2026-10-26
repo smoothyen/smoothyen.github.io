@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>牌局活動獎勵計算器</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- html2pdf.js CDN (用於匯出 PDF) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans TC', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen py-8 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-4xl mx-auto">
+        <!-- 頁首 -->
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold tracking-tight text-amber-400 sm:text-4xl">🃏 牌局活動獎勵計算器</h1>
+            <p class="mt-2 text-sm text-slate-400">自動計算輸家折扣、總獎金池與贏家比例分配[cite: 1]</p>
+        </header>
+
+        <div class="grid grid-cols-1 gap-8 md:grid-cols-3">
+            <!-- 左側：輸入表單與快速帶入 -->
+            <div class="md:col-span-1 bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold text-amber-300">玩家得分輸入</h2>
+                    <div class="space-x-1">
+                        <button onclick="loadSampleData()" class="text-xs bg-slate-700 hover:bg-slate-600 text-amber-300 px-2.5 py-1 rounded transition">載入範例</button>
+                        <button onclick="resetForm()" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-2.5 py-1 rounded transition">清空</button>
+                    </div>
+                </div>
+
+                <div id="player-inputs" class="space-y-3">
+                    <!-- 動態生成 6 位玩家輸入框 -->
+                </div>
+
+                <button onclick="calculate()" class="w-full mt-6 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold py-2.5 px-4 rounded-xl shadow-lg transition duration-200">
+                    立即計算獎勵
+                </button>
+            </div>
+
+            <!-- 右側：計算結果與明細 -->
+            <div class="md:col-span-2 space-y-6">
+                <!-- 可供匯出 PDF 的列印範圍容器 -->
+                <div id="pdf-content" class="space-y-6 bg-slate-900 p-2 rounded-xl">
+                    <!-- 輸家計算結果 -->
+                    <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-lg font-semibold text-rose-400">一、輸家金額與折扣計算[cite: 1]</h2>
+                            <span id="loser-pool-badge" class="text-xs bg-rose-500/20 text-rose-300 px-2.5 py-1 rounded-full font-medium">總獎金池: $0</span>
+                        </div>
+                        <div id="loser-results" class="space-y-3 text-sm text-slate-300">
+                            <p class="text-slate-500 italic">尚未計算，請於左側輸入得分後點擊計算。</p>
+                        </div>
+                    </div>
+
+                    <!-- 贏家計算結果 -->
+                    <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
+                        <h2 class="text-lg font-semibold text-emerald-400 mb-4">二、贏家獎勵分配結果[cite: 1]</h2>
+                        <div id="winner-results" class="space-y-3 text-sm text-slate-300">
+                            <p class="text-slate-500 italic">尚未計算。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 分享與匯出功能操作區 -->
+                <div class="bg-slate-800 p-4 rounded-2xl shadow-xl border border-slate-700 flex flex-wrap gap-3 justify-between items-center">
+                    <div class="text-xs text-slate-400">
+                        💡 提示：可將結果匯出成 PDF 或產生專屬分享連結傳給朋友！
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="exportPDF()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium px-3.5 py-2 rounded-lg transition flex items-center gap-1.5">
+                            📥 匯出 PDF 報告
+                        </button>
+                        <button onclick="shareLink()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium px-3.5 py-2 rounded-lg transition flex items-center gap-1.5">
+                            🔗 複製分享連結
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 折扣率規則表卡片 -->
+                <div class="bg-slate-800/60 p-5 rounded-2xl border border-slate-700/60 text-xs text-slate-400">
+                    <h3 class="font-semibold text-slate-300 mb-2">📋 輸家金額折扣率對照規則[cite: 1]：</h3>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        <div>&lt; $1,000：<span class="text-amber-300">x 1.0</span>[cite: 1]</div>
+                        <div>$1,000 ~ $1,999：<span class="text-amber-300">x 0.9</span>[cite: 1]</div>
+                        <div>$2,000 ~ $2,999：<span class="text-amber-300">x 0.8</span>[cite: 1]</div>
+                        <div>$3,000 ~ $3,999：<span class="text-amber-300">x 0.7</span>[cite: 1]</div>
+                        <div>$4,000 ~ $4,999：<span class="text-amber-300">x 0.6</span>[cite: 1]</div>
+                        <div>&gt; $5,000：<span class="text-amber-300">x 0.5</span>[cite: 1]</div>
+                    </div>
+                    <p class="mt-2 text-slate-500">* 註：輸家金額個位數採四捨五入至十位數計算[cite: 1]。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript 邏輯 -->
+    <script>
+        const defaultPlayers = [
+            { name: "玩家A", score: 3000 },
+            { name: "玩家B", score: 1000 },
+            { name: "玩家C", score: -1269 },
+            { name: "玩家D", score: -1263 },
+            { name: "玩家E", score: -2500 },
+            { name: "玩家F", score: -5500 }
+        ];
+
+        // 初始化輸入框
+        function initInputs(data) {
+            const container = document.getElementById('player-inputs');
+            container.innerHTML = '';
+            data.forEach((p, index) => {
+                container.innerHTML += `
+                    <div class="flex gap-2 items-center">
+                        <input type="text" id="name-${index}" value="${p.name}" placeholder="玩家名字" class="w-1/2 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-amber-500">
+                        <input type="number" id="score-${index}" value="${p.score}" placeholder="得分" class="w-1/2 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-amber-500">
+                    </div>
+                `;
+            });
+        }
+
+        function loadSampleData() {
+            initInputs(defaultPlayers);
+            calculate();
+        }
+
+        function resetForm() {
+            const emptyData = Array.from({length: 6}, (_, i) => ({ name: `玩家${i+1}`, score: 0 }));
+            initInputs(emptyData);
+            document.getElementById('loser-results').innerHTML = '<p class="text-slate-500 italic">請輸入得分並點擊計算。</p>';
+            document.getElementById('winner-results').innerHTML = '<p class="text-slate-500 italic">請輸入得分並點擊計算。</p>';
+            document.getElementById('loser-pool-badge').innerText = '總獎金池: $0';
+        }
+
+        // 四捨五入至十位數
+        function roundToTens(amount) {
+            return Math.round(amount / 10) * 10;
+        }
+
+        function getDiscountRate(lossAmount) {
+            if (lossAmount < 1000) return 1.0;
+            if (lossAmount <= 1999) return 0.9;
+            if (lossAmount <= 2999) return 0.8;
+            if (lossAmount <= 3999) return 0.7;
+            if (lossAmount <= 4999) return 0.6;
+            return 0.5;
+        }
+
+        function calculate() {
+            let scores = {};
+            for (let i = 0; i < 6; i++) {
+                const name = document.getElementById(`name-${i}`).value.trim() || `玩家${i+1}`;
+                const score = parseInt(document.getElementById(`score-${i}`).value) || 0;
+                scores[name] = score;
+            }
+
+            let losers = {};
+            let winners = {};
+
+            for (let [name, score] of Object.entries(scores)) {
+                if (score < 0) losers[name] = Math.abs(score);
+                else if (score > 0) winners[name] = score;
+            }
+
+            // 計算輸家
+            let totalPool = 0;
+            let loserHtml = '';
+            if (Object.keys(losers).length === 0) {
+                loserHtml = '<p class="text-slate-500 italic">無輸家資料。</p>';
+            } else {
+                for (let [name, rawLoss] of Object.entries(losers)) {
+                    let rate = getDiscountRate(rawLoss);
+                    let discounted = rawLoss * rate;
+                    let finalLoss = roundToTens(discounted);
+                    totalPool += finalLoss;
+
+                    loserHtml += `
+                        <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-700/50">
+                            <div class="flex justify-between font-medium text-slate-200">
+                                <span>${name}</span>
+                                <span class="text-rose-400">-$${finalLoss} <span class="text-xs text-slate-500">(原 $${rawLoss})</span></span>
+                            </div>
+                            <div class="text-xs text-slate-400 mt-1 flex justify-between">
+                                <span>折扣率: ${rate * 100}%[cite: 1]</span>
+                                <span>折後: $${discounted.toFixed(1)} ➔ 四捨五入[cite: 1]</span>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+            document.getElementById('loser-results').innerHTML = loserHtml;
+            document.getElementById('loser-pool-badge').innerText = `總獎金池: $${totalPool}`;
+
+            // 計算贏家
+            let winnerHtml = '';
+            let totalWinnerScore = Object.values(winners).reduce((a, b) => a + b, 0);
+
+            if (Object.keys(winners).length === 0 || totalWinnerScore === 0) {
+                winnerHtml = '<p class="text-slate-500 italic">無贏家資料可分配。</p>';
+            } else {
+                for (let [name, score] of Object.entries(winners)) {
+                    let ratio = score / totalWinnerScore;
+                    let rawReward = totalPool * ratio;
+                    let finalReward = roundToTens(rawReward);
+
+                    winnerHtml += `
+                        <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-700/50">
+                            <div class="flex justify-between font-medium text-slate-200">
+                                <span>${name}</span>
+                                <span class="text-emerald-400">+$${finalReward} <span class="text-xs text-slate-500">(獲勝分 +$${score})</span></span>
+                            </div>
+                            <div class="text-xs text-slate-400 mt-1">
+                                分配比例: ${(ratio * 100).toFixed(2)}%[cite: 1]
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+            document.getElementById('winner-results').innerHTML = winnerHtml;
+        }
+
+        // 匯出 PDF 功能
+        function exportPDF() {
+            const element = document.getElementById('pdf-content');
+            const opt = {
+                margin:       10,
+                filename:     '牌局活動獎勵結算報告.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+            html2pdf().from(element).set(opt).save();
+        }
+
+        // 產生分享連結功能 (透過 URL Hash 帶入資料)
+        function shareLink() {
+            let data = [];
+            for (let i = 0; i < 6; i++) {
+                const name = document.getElementById(`name-${i}`).value.trim() || `玩家${i+1}`;
+                const score = parseInt(document.getElementById(`score-${i}`).value) || 0;
+                data.push({ n: name, s: score });
+            }
+            const jsonStr = JSON.stringify(data);
+            const encoded = encodeURIComponent(jsonStr);
+            const shareUrl = window.location.origin + window.location.pathname + '#' + encoded;
+
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                alert("✅ 分享連結已成功複製到剪貼簿！\n您可以直接透過 Line、Email 或 Messenger 貼給其他人開啟。");
+            }).catch(err => {
+                prompt("請複製以下分享連結：", shareUrl);
+            });
+        }
+
+        // 頁面載入時檢查是否有帶入分享參數
+        window.onload = function() {
+            if (window.location.hash) {
+                try {
+                    const decoded = decodeURIComponent(window.location.hash.substring(1));
+                    const data = JSON.parse(decoded);
+                    const formattedData = data.map(item => ({ name: item.n, score: item.s }));
+                    initInputs(formattedData);
+                    calculate();
+                    return;
+                } catch (e) {
+                    console.error("解析分享連結失敗", e);
+                }
+            }
+            loadSampleData(); // 預設載入範例
+        };
+    </script>
+</body>
+</html>
